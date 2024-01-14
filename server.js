@@ -6,6 +6,7 @@ const app = express();
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({extended: true}));
+app.use(express.json());
 
 app.get('/', (request, response)=> {
     let url = 'https://api.themoviedb.org/3/movie/808?api_key=4e5df50980f54f81c3b6e39dc0133fa4';
@@ -84,6 +85,52 @@ app.post('/search', (request, response) => {
         response.render('search', {movieDetails: movieData});
     }));
 });
+
+app.post('/getmovie', (req, res) => {
+	const movieToSearch =
+		req.body.queryResult && req.body.queryResult.parameters && req.body.queryResult.parameters.movie
+			? req.body.queryResult.parameters.movie
+			: '';
+
+	const reqUrl = encodeURI(
+		`http://www.omdbapi.com/?t=${movieToSearch}&apikey=138178bd`
+	);
+	http.get(
+		reqUrl,
+		responseFromAPI => {
+			let completeResponse = ''
+			responseFromAPI.on('data', chunk => {
+				completeResponse += chunk
+			})
+			responseFromAPI.on('end', () => {
+				const movie = JSON.parse(completeResponse);
+                if (!movie || !movie.Title) {
+                    return res.json({
+                        fulfillmentText: 'Sorry, we could not find the movie you are asking for.',
+                        source: 'getmovie'
+                    });
+                }
+
+				let dataToSend = movieToSearch;
+				dataToSend = `${movie.Title} was released in the year ${movie.Year}. It is directed by ${
+					movie.Director
+				} and stars ${movie.Actors}.\n Here\'s a glimpse of the plot: ${movie.Plot}.`;
+
+				return res.json({
+					fulfillmentText: dataToSend,
+					source: 'getmovie'
+				});
+			})
+		},
+		error => {
+			return res.json({
+				fulfillmentText: 'Could not get results at this time',
+				source: 'getmovie'
+			});
+		}
+	)
+});
+
 
 app.listen(process.env.PORT || 3000, ()=> {
     console.log('Server is running on port 3000');
